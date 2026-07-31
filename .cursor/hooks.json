@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/before-shell-execution-block-no-verify.js",
+        "event": "beforeShellExecution",
+        "description": "Block git hook-bypass flag to protect pre-commit, commit-msg, and pre-push hooks from being skipped"
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "command": "node .cursor/hooks/after-shell-execution.js",
+        "event": "afterShellExecution",
+        "description": "PR URL logging, build analysis"
+      }
+    ],
+    "beforeMCPExecution": [
+      {
+        "command": "node .cursor/hooks/before-mcp-execution.js",
+        "event": "beforeMCPExecution",
+        "description": "MCP audit logging and untrusted server warning"
+      }
+    ],
+    "afterMCPExecution": [
+      {
+        "command": "node .cursor/hooks/after-mcp-execution.js",
+        "event": "afterMCPExecution",
+        "description": "MCP result logging"
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "node .cursor/hooks/before-read-file.js",
+        "event": "beforeReadFile",
+        "description": "Warn when reading sensitive files (.env, .key, .pem)"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node .cursor/hooks/before-submit-prompt.js",
+        "event": "beforeSubmitPrompt",
+        "description": "Detect secrets in prompts (sk-, ghp_, AKIA patterns)"
+      }
+    ],
+    "subagentStart": [
+      {
+        "command": "node .cursor/hooks/subagent-start.js",
+        "event": "subagentStart",
+        "description": "Log agent spawning for observability"
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "node .cursor/hooks/subagent-stop.js",
+        "event": "subagentStop",
+        "description": "Log agent completion"
+      }
+    ],
+    "beforeTabFileRead": [
+      {
+        "command": "node .cursor/hooks/before-tab-file-read.js",
+        "event": "beforeTabFileRead",
+        "description": "Block Tab from reading secrets (.env, .key, .pem, credentials)"
+      }
+    ]
+  }
+}

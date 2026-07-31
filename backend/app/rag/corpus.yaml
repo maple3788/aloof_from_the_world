@@ -1,0 +1,107 @@
+# Starter corpus: public-domain texts from Project Gutenberg.
+# `authors` on persona cards match against `author` here; `traditions` match `tradition`.
+works:
+  - id: plato_republic
+    title: The Republic
+    author: Plato
+    tradition: Western philosophy
+    era: Classical Greece
+    gutenberg_id: 1497
+
+  - id: plato_apology
+    title: Apology
+    author: Plato
+    tradition: Western philosophy
+    era: Classical Greece
+    gutenberg_id: 1656
+
+  - id: marcus_meditations
+    title: Meditations
+    author: Marcus Aurelius
+    tradition: Stoicism
+    era: Roman Empire
+    gutenberg_id: 2680
+
+  - id: epictetus_enchiridion
+    title: The Enchiridion
+    author: Epictetus
+    tradition: Stoicism
+    era: Roman Empire
+    gutenberg_id: 45109
+
+  - id: nietzsche_zarathustra
+    title: Thus Spake Zarathustra
+    author: Friedrich Nietzsche
+    tradition: Western philosophy
+    era: 19th century
+    gutenberg_id: 1998
+
+  - id: nietzsche_bge
+    title: Beyond Good and Evil
+    author: Friedrich Nietzsche
+    tradition: Western philosophy
+    era: 19th century
+    gutenberg_id: 4363
+
+  - id: freud_intro
+    title: A General Introduction to Psychoanalysis
+    author: Sigmund Freud
+    tradition: Psychoanalysis
+    era: Early 20th century
+    gutenberg_id: 38219
+
+  - id: james_varieties
+    title: The Varieties of Religious Experience
+    author: William James
+    tradition: Psychology
+    era: Early 20th century
+    gutenberg_id: 621
+
+  - id: laozi_tao
+    title: Tao Te Ching
+    author: Laozi
+    tradition: Chinese philosophy
+    era: Spring and Autumn period
+    gutenberg_id: 216
+
+  - id: confucius_analects
+    title: The Analects
+    author: Confucius
+    tradition: Chinese philosophy
+    era: Spring and Autumn period
+    gutenberg_id: 4094
+
+  - id: machiavelli_prince
+    title: The Prince
+    author: Niccolo Machiavelli
+    tradition: Political philosophy
+    era: Renaissance
+    gutenberg_id: 1232
+
+  - id: descartes_discourse
+    title: Discourse on the Method
+    author: Rene Descartes
+    tradition: Western philosophy
+    era: 17th century
+    gutenberg_id: 59
+
+  - id: mill_on_liberty
+    title: On Liberty
+    author: John Stuart Mill
+    tradition: Western philosophy
+    era: 19th century
+    gutenberg_id: 34901
+
+  - id: thucydides_history
+    title: History of the Peloponnesian War
+    author: Thucydides
+    tradition: Historiography
+    era: Classical Greece
+    gutenberg_id: 7142
+
+  - id: herodotus_histories
+    title: The Histories
+    author: Herodotus
+    tradition: Historiography
+    era: Classical Greece
+    gutenberg_id: 2707

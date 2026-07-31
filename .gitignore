@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# Env & secrets
+.env
+
+# Node
+node_modules/
+.next/
+out/
+
+# Data (regenerable)
+data/chroma/
+data/corpus/*.txt
+data/*.db
+
+# OS
+.DS_Store

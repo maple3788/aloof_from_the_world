@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:latest}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-chroma-default}
+      CHROMA_DIR: /data/chroma
+      CORPUS_DIR: /data/corpus
+      DATABASE_PATH: /data/aloof.db
+    volumes:
+      - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend

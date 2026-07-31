@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Palatino", "Palatino Linotype", "Book Antiqua", "Songti SC", Georgia, serif;
+  --font-sans: ui-sans-serif, -apple-system, "Segoe UI", "Helvetica Neue", "PingFang SC", sans-serif;
+
+  --color-parchment: #e7e0d2;
+  --color-ink: #17130e;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-stone-950 text-stone-200 font-sans antialiased;
+}
+
+::selection {
+  @apply bg-amber-500/30 text-amber-100;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: theme(--color-stone-700) transparent;
+}
+
+.prose-chat p {
+  @apply my-2 leading-relaxed;
+}
+.prose-chat ul,
+.prose-chat ol {
+  @apply my-2 pl-5;
+}
+.prose-chat ul li {
+  @apply list-disc;
+}
+.prose-chat ol li {
+  @apply list-decimal;
+}
+.prose-chat blockquote {
+  @apply border-l-2 border-amber-700/60 pl-3 my-2 text-stone-400 italic;
+}
+.prose-chat code {
+  @apply bg-stone-800 rounded px-1 py-0.5 text-[0.85em] text-amber-200;
+}
+.prose-chat pre {
+  @apply bg-stone-900 rounded-lg p-3 my-2 overflow-x-auto;
+}
+.prose-chat pre code {
+  @apply bg-transparent p-0;
+}
+.prose-chat strong {
+  @apply text-stone-100;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  @apply font-serif text-stone-100 mt-4 mb-2;
+}
