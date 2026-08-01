@@ -36,10 +36,12 @@ function setup(overrides: Partial<Parameters<typeof PersonaPicker>[0]> = {}) {
   const props = {
     personas: PERSONAS,
     mode: "discuss" as const,
+    language: "en" as const,
     selected: ["socrates"],
     maxPersonas: 2,
     locked: false,
     onModeChange: vi.fn(),
+    onLanguageChange: vi.fn(),
     onToggle: vi.fn(),
     ...overrides,
   };
@@ -79,5 +81,21 @@ describe("PersonaPicker", () => {
     expect(screen.getByText("The Tutor")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "discuss" }));
     expect(onModeChange).toHaveBeenCalledWith("discuss");
+  });
+
+  it("switches language and localizes the mode labels", () => {
+    const { onLanguageChange } = setup({ language: "zh" });
+    expect(screen.getByRole("button", { name: "对话" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    // Already zh — clicking again still reports the choice.
+    expect(onLanguageChange).toHaveBeenCalledWith("zh");
+  });
+
+  it("locks the language switch when locked", () => {
+    setup({ locked: true });
+    expect(screen.getByRole("button", { name: "中文" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 });

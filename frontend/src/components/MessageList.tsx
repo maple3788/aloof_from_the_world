@@ -4,16 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { personaTheme } from "@/lib/colors";
-import type { Citation, Message, Persona } from "@/lib/types";
+import { strings } from "@/lib/i18n";
+import type { Citation, Language, Message, Persona } from "@/lib/types";
 
 interface Props {
   messages: Message[];
   personas: Persona[];
+  language?: Language;
 }
 
-function personaName(personas: Persona[], id?: string | null): string {
+function personaName(
+  personas: Persona[],
+  id: string | null | undefined,
+  tutorName: string,
+): string {
   if (!id) return "Assistant";
-  if (id === "tutor") return "Tutor";
+  if (id === "tutor") return tutorName;
   return personas.find((p) => p.id === id)?.name ?? id;
 }
 
@@ -44,8 +50,9 @@ function CitationChip({ citation, index }: { citation: Citation; index: number }
   );
 }
 
-export default function MessageList({ messages, personas }: Props) {
+export default function MessageList({ messages, personas, language = "en" }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const s = strings(language);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -72,7 +79,7 @@ export default function MessageList({ messages, personas }: Props) {
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${theme.chip}`}
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${theme.dot}`} />
-                {personaName(personas, msg.persona_id)}
+                {personaName(personas, msg.persona_id, s.tutorName)}
               </span>
               <div className="prose-chat rounded-2xl rounded-tl-sm border border-stone-800 bg-stone-900/70 px-4 py-3 text-stone-200">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -84,7 +91,7 @@ export default function MessageList({ messages, personas }: Props) {
               </div>
               {msg.critic_note && (
                 <p className="text-xs italic text-stone-500">
-                  Moderator&apos;s note: {msg.critic_note}
+                  {s.moderatorNote}: {msg.critic_note}
                 </p>
               )}
               {msg.citations && msg.citations.length > 0 && (

@@ -1,4 +1,14 @@
-import type { Health, Persona, Session, StreamEvent, Work } from "./types";
+import type {
+  Health,
+  Language,
+  Persona,
+  Session,
+  StreamEvent,
+  TraceDetail,
+  TraceSummary,
+  Work,
+  WorkText,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -16,18 +26,35 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   listSessions: () => request<Session[]>("/sessions"),
-  createSession: (mode: string, personaIds: string[]) =>
+  createSession: (mode: string, personaIds: string[], language: Language, workId?: string) =>
     request<Session>("/sessions", {
       method: "POST",
-      body: JSON.stringify({ mode, persona_ids: personaIds }),
+      body: JSON.stringify({
+        mode,
+        persona_ids: personaIds,
+        language,
+        ...(workId ? { work_id: workId } : {}),
+      }),
     }),
   getSession: (id: string, signal?: AbortSignal) =>
     request<Session>(`/sessions/${id}`, { signal }),
   deleteSession: (id: string) =>
     request<void>(`/sessions/${id}`, { method: "DELETE" }),
   listPersonas: () => request<Persona[]>("/personas"),
+  generatePersona: (workId: string) =>
+    request<Persona>("/personas/generate", {
+      method: "POST",
+      body: JSON.stringify({ work_id: workId }),
+    }),
   listWorks: () => request<Work[]>("/library/works"),
+  getWorkText: (workId: string) => request<WorkText>(`/library/works/${workId}/text`),
   getHealth: () => request<Health>("/health"),
+  listTraces: (sessionId?: string, limit = 50, offset = 0) => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (sessionId) params.set("session_id", sessionId);
+    return request<TraceSummary[]>(`/traces?${params}`);
+  },
+  getTrace: (id: string) => request<TraceDetail>(`/traces/${id}`),
 };
 
 export async function streamChat(

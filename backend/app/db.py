@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     mode TEXT NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
     persona_ids TEXT NOT NULL,
+    work_id TEXT,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS messages (
@@ -27,6 +29,21 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE TABLE IF NOT EXISTS traces (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    query TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    language TEXT NOT NULL,
+    speakers TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT,
+    total_ms INTEGER NOT NULL,
+    detail TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_traces_session ON traces(session_id);
+CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 """
 
 
@@ -39,9 +56,29 @@ def _row_to_session(row: aiosqlite.Row) -> dict[str, Any]:
         "id": row["id"],
         "title": row["title"],
         "mode": row["mode"],
+        "language": row["language"],
         "persona_ids": json.loads(row["persona_ids"]),
+        "work_id": row["work_id"],
         "created_at": row["created_at"],
     }
+
+
+def _row_to_trace(row: aiosqlite.Row, include_detail: bool = False) -> dict[str, Any]:
+    trace = {
+        "id": row["id"],
+        "session_id": row["session_id"],
+        "query": row["query"],
+        "mode": row["mode"],
+        "language": row["language"],
+        "speakers": json.loads(row["speakers"]),
+        "status": row["status"],
+        "error": row["error"],
+        "total_ms": row["total_ms"],
+        "created_at": row["created_at"],
+    }
+    if include_detail:
+        trace["detail"] = json.loads(row["detail"])
+    return trace
 
 
 def _row_to_message(row: aiosqlite.Row) -> dict[str, Any]:
@@ -80,6 +117,17 @@ class Database:
         database = cls(conn)
         async with database._lock:
             await conn.executescript(SCHEMA)
+            # Lightweight migrations for DBs created before these columns existed.
+            columns = {
+                row[1]
+                for row in await conn.execute_fetchall("PRAGMA table_info(sessions)")
+            }
+            if "language" not in columns:
+                await conn.execute(
+                    "ALTER TABLE sessions ADD COLUMN language TEXT NOT NULL DEFAULT 'en'"
+                )
+            if "work_id" not in columns:
+                await conn.execute("ALTER TABLE sessions ADD COLUMN work_id TEXT")
             await conn.commit()
         return database
 
@@ -88,24 +136,33 @@ class Database:
             await self._conn.close()
 
     async def create_session(
-        self, mode: str, persona_ids: list[str], title: str = "New chat"
+        self,
+        mode: str,
+        persona_ids: list[str],
+        language: str = "en",
+        work_id: str | None = None,
+        title: str = "New chat",
     ) -> dict:
         session = {
             "id": uuid.uuid4().hex[:12],
             "title": title,
             "mode": mode,
+            "language": language,
             "persona_ids": persona_ids,
+            "work_id": work_id,
             "created_at": _now(),
         }
         async with self._lock:
             await self._conn.execute(
-                "INSERT INTO sessions (id, title, mode, persona_ids, created_at)"
-                " VALUES (?,?,?,?,?)",
+                "INSERT INTO sessions (id, title, mode, language, persona_ids, work_id,"
+                " created_at) VALUES (?,?,?,?,?,?,?)",
                 (
                     session["id"],
                     title,
                     mode,
+                    language,
                     json.dumps(persona_ids),
+                    work_id,
                     session["created_at"],
                 ),
             )
@@ -138,6 +195,9 @@ class Database:
         async with self._lock:
             await self._conn.execute(
                 "DELETE FROM messages WHERE session_id = ?", (session_id,)
+            )
+            await self._conn.execute(
+                "DELETE FROM traces WHERE session_id = ?", (session_id,)
             )
             await self._conn.execute(
                 "DELETE FROM sessions WHERE id = ?", (session_id,)
@@ -188,3 +248,48 @@ class Database:
                 (session_id,),
             )
             return [_row_to_message(row) for row in await cursor.fetchall()]
+
+    async def save_trace(self, row: dict) -> None:
+        async with self._lock:
+            await self._conn.execute(
+                """INSERT INTO traces
+                   (id, session_id, query, mode, language, speakers, status, error,
+                    total_ms, detail, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    row["id"],
+                    row["session_id"],
+                    row["query"],
+                    row["mode"],
+                    row["language"],
+                    json.dumps(row["speakers"]),
+                    row["status"],
+                    row["error"],
+                    row["total_ms"],
+                    json.dumps(row["detail"], ensure_ascii=False),
+                    row["created_at"],
+                ),
+            )
+            await self._conn.commit()
+
+    async def list_traces(
+        self, session_id: str | None = None, limit: int = 50, offset: int = 0
+    ) -> list[dict]:
+        sql = "SELECT * FROM traces"
+        params: list = []
+        if session_id:
+            sql += " WHERE session_id = ?"
+            params.append(session_id)
+        sql += " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        async with self._lock:
+            cursor = await self._conn.execute(sql, params)
+            return [_row_to_trace(row) for row in await cursor.fetchall()]
+
+    async def get_trace(self, trace_id: str) -> dict | None:
+        async with self._lock:
+            cursor = await self._conn.execute(
+                "SELECT * FROM traces WHERE id = ?", (trace_id,)
+            )
+            row = await cursor.fetchone()
+            return _row_to_trace(row, include_detail=True) if row else None

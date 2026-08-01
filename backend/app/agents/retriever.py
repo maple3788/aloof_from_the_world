@@ -6,9 +6,14 @@ EXCERPT_LEN = 280
 
 
 async def retrieve_for_persona(
-    store, persona, query: str, k: int | None = None
+    store, persona, query: str, k: int | None = None, work_id: str | None = None
 ) -> list[Document]:
     where = persona_where_filter(authors=persona.authors, traditions=persona.traditions)
+    if work_id is not None:
+        # Reading sessions ground replies in the work being read, not the
+        # persona's whole corpus. The where dict feeds the retrieval cache key.
+        work_clause = {"work_id": work_id}
+        where = {"$and": [where, work_clause]} if where else work_clause
     return await retrieve(store, query, k=k, where=where)
 
 

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
 from app.agents.graph import build_graph
-from app.api import chat, library, sessions
+from app.api import chat, library, sessions, traces
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(sessions.router, tags=["sessions"])
     app.include_router(chat.router, tags=["chat"])
     app.include_router(library.router, tags=["library"])
+    app.include_router(traces.router, tags=["traces"])
 
     @app.get("/health")
     def health() -> dict:

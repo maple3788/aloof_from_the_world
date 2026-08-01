@@ -30,6 +30,12 @@ const THEMES: Record<string, ColorTheme> = {
     selected: "border-emerald-600 bg-emerald-500/10",
     ring: "ring-emerald-600/50",
   },
+  sky: {
+    dot: "bg-sky-500",
+    chip: "bg-sky-500/10 text-sky-300 border-sky-700/40",
+    selected: "border-sky-600 bg-sky-500/10",
+    ring: "ring-sky-600/50",
+  },
   teal: {
     dot: "bg-teal-500",
     chip: "bg-teal-500/10 text-teal-300 border-teal-700/40",

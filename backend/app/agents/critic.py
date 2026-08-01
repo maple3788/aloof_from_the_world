@@ -4,8 +4,10 @@ import re
 
 from langchain_core.language_models import BaseChatModel
 
+from app.agents.i18n import normalize_language
 from app.agents.retriever import doc_to_excerpt, format_context
 from app.agents.state import Citation, PersonaResponse
+from app.agents.trace import recorder_from
 from app.cache import critic_key, get_cache
 from app.config import get_settings
 
@@ -23,7 +25,7 @@ SOURCE PASSAGES:
 Decide which passages genuinely support the response's claims. Reply with ONLY a \
 JSON object, no other text:
 {{"supported": true|false, "citation_indices": [ints from the passage numbers], \
-"note": "one short sentence if the response overreaches its sources, else null"}}"""
+"note": "one short sentence if the response overreaches its sources, else null"}}{note_language}"""
 
 
 def _doc_to_citation(doc) -> Citation:
@@ -65,19 +67,36 @@ def _parse_critic_json(text: str) -> dict | None:
 
 
 async def _critique_one(
-    response: PersonaResponse, llm: BaseChatModel | None, enabled: bool
+    response: PersonaResponse,
+    llm: BaseChatModel | None,
+    enabled: bool,
+    language: str = "en",
+    recorder=None,
 ) -> PersonaResponse:
     docs = response.get("docs") or []
     citations = _heuristic_citations(docs)
     note: str | None = None
+    supported: bool | None = None
+    from_cache = False
 
     if enabled and llm is not None and docs:
         context = format_context(docs)
         cache = get_cache()
-        key = critic_key(response["content"], context)
+        # Language is part of the prompt, so it must be part of the cache key.
+        key = critic_key(response["content"], f"{language}:{context}")
         data = await cache.get(key)
-        if data is None:
-            prompt = CRITIC_PROMPT.format(response=response["content"], context=context)
+        if data is not None:
+            from_cache = True
+        else:
+            prompt = CRITIC_PROMPT.format(
+                response=response["content"],
+                context=context,
+                note_language=(
+                    '\nWrite the "note" value in Simplified Chinese (简体中文).'
+                    if language == "zh"
+                    else ""
+                ),
+            )
             try:
                 result = await llm.ainvoke(prompt, config={"tags": ["critic"]})
                 data = _parse_critic_json(str(result.content))
@@ -86,12 +105,18 @@ async def _critique_one(
             if data:
                 await cache.set(key, data, get_settings().cache_ttl_critic)
         if data:
+            supported = bool(data.get("supported"))
             indices = [i for i in data["citation_indices"] if isinstance(i, int)]
             chosen = [docs[i - 1] for i in indices if 1 <= i <= len(docs)]
             if chosen:
                 citations = _heuristic_citations(chosen)
             if data.get("supported") is False and data.get("note"):
                 note = str(data["note"])
+
+    if recorder is not None:
+        recorder.record_critic(
+            response["responder"], supported, note, len(citations), from_cache
+        )
 
     return PersonaResponse(
         responder=response["responder"],
@@ -106,8 +131,13 @@ async def _critique_one(
 async def critic_node(
     state: dict, llm: BaseChatModel | None = None, enabled: bool = True
 ) -> dict:
+    language = normalize_language(state.get("language"))
+    recorder = recorder_from(state)
     # Responses are independent post-generation, so critiques run concurrently.
     reviewed = await asyncio.gather(
-        *(_critique_one(r, llm, enabled) for r in state.get("responses", []))
+        *(
+            _critique_one(r, llm, enabled, language, recorder)
+            for r in state.get("responses", [])
+        )
     )
     return {"responses": list(reviewed)}

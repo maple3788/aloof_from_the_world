@@ -6,10 +6,8 @@ import MessageList from "@/components/MessageList";
 import Sidebar from "@/components/Sidebar";
 import { api, streamChat } from "@/lib/api";
 import { personaTheme } from "@/lib/colors";
-import type { Message, Persona, Session } from "@/lib/types";
-
-const TUTOR_GREETING =
-  "Welcome. Tell me what you are studying — a thinker, a movement, a period — and I will explain it, question you on it, or quiz you, drawing on the library's texts.";
+import { strings } from "@/lib/i18n";
+import type { Language, Message, Persona, Session } from "@/lib/types";
 
 export default function Home() {
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -17,6 +15,7 @@ export default function Home() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draftMode, setDraftMode] = useState<"discuss" | "study">("discuss");
+  const [draftLanguage, setDraftLanguage] = useState<Language>("en");
   const [draftPersonas, setDraftPersonas] = useState<string[]>(["socrates"]);
   const [maxPersonas, setMaxPersonas] = useState(3);
   const [streaming, setStreaming] = useState(false);
@@ -43,7 +42,9 @@ export default function Home() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   const currentMode = activeSession?.mode ?? draftMode;
+  const currentLanguage = activeSession?.language ?? draftLanguage;
   const currentPersonas = activeSession?.persona_ids ?? draftPersonas;
+  const s = strings(currentLanguage);
 
   const selectSession = useCallback(async (id: string) => {
     // Switching sessions must kill any in-flight stream, or its tokens
@@ -106,6 +107,7 @@ export default function Home() {
           const created = await api.createSession(
             draftMode,
             draftMode === "study" ? [] : draftPersonas,
+            draftLanguage,
           );
           setSessions((prev) => [created, ...prev]);
           setActiveSessionId(created.id);
@@ -164,7 +166,7 @@ export default function Home() {
         setStreaming(false);
       }
     },
-    [streaming, activeSessionId, draftMode, draftPersonas],
+    [streaming, activeSessionId, draftMode, draftPersonas, draftLanguage],
   );
 
   const showWelcome = messages.length === 0;
@@ -177,9 +179,11 @@ export default function Home() {
         sessions={sessions}
         activeSessionId={activeSessionId}
         draftMode={draftMode}
+        draftLanguage={draftLanguage}
         draftPersonas={draftPersonas}
         maxPersonas={maxPersonas}
         onModeChange={setDraftMode}
+        onLanguageChange={setDraftLanguage}
         onTogglePersona={toggleDraftPersona}
         onNewChat={newChat}
         onSelectSession={selectSession}
@@ -189,7 +193,7 @@ export default function Home() {
       <main className="flex min-w-0 flex-1 flex-col">
         {error && (
           <div className="border-b border-rose-800/50 bg-rose-950/40 px-6 py-2 text-sm text-rose-300">
-            {error} — is the backend running? (uv run uvicorn app.main:app --reload)
+            {error} — {s.backendError}
           </div>
         )}
 
@@ -198,21 +202,23 @@ export default function Home() {
             <div className="text-center">
               <h2 className="font-serif text-4xl font-semibold text-stone-100">
                 {currentMode === "study"
-                  ? "Study with the Tutor"
+                  ? s.welcomeStudy
                   : greetingPersonas.length > 1
-                    ? "Convene a roundtable"
-                    : "Begin the dialogue"}
+                    ? s.welcomeRoundtable
+                    : s.welcomeDialogue}
               </h2>
               <p className="mt-2 max-w-md text-sm text-stone-500">
-                {currentMode === "study"
-                  ? TUTOR_GREETING
-                  : "Ask about virtue, dreams, power, the Tao — every answer is drawn from the primary texts in the library."}
+                {currentMode === "study" ? s.tutorGreeting : s.welcomeDiscussHint}
               </p>
             </div>
             {currentMode === "discuss" && (
               <div className="flex max-w-3xl flex-wrap justify-center gap-4">
                 {greetingPersonas.map((p) => {
                   const theme = personaTheme(p.id, p.color);
+                  const greeting =
+                    currentLanguage === "zh" && p.greeting_zh
+                      ? p.greeting_zh
+                      : p.greeting;
                   return (
                     <div
                       key={p.id}
@@ -224,7 +230,7 @@ export default function Home() {
                       </p>
                       <p className="mt-0.5 text-xs text-stone-500">{p.era}</p>
                       <p className="mt-2 text-sm italic leading-relaxed text-stone-400">
-                        “{p.greeting}”
+                        “{greeting}”
                       </p>
                     </div>
                   );
@@ -233,17 +239,22 @@ export default function Home() {
             )}
           </div>
         ) : (
-          <MessageList messages={messages} personas={personas} />
+          <MessageList
+            messages={messages}
+            personas={personas}
+            language={currentLanguage}
+          />
         )}
 
         <Composer
           disabled={streaming}
+          language={currentLanguage}
           placeholder={
             currentMode === "study"
-              ? "Ask for an explanation, a Socratic dialogue, or a quiz…"
+              ? s.placeholderStudy
               : currentPersonas.length > 1
-                ? "Pose a question to the roundtable…"
-                : "Ask your question…"
+                ? s.placeholderRoundtable
+                : s.placeholderAsk
           }
           onSend={send}
         />

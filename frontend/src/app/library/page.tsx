@@ -6,6 +6,11 @@ import { api } from "@/lib/api";
 import { personaTheme } from "@/lib/colors";
 import type { Persona, Work } from "@/lib/types";
 
+function readLabel(work: Work, personas: Persona[]): string {
+  const name = personas.find((p) => p.id === work.persona_id)?.name;
+  return name ? `Read with ${name}` : "Read";
+}
+
 export default function LibraryPage() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [works, setWorks] = useState<Work[]>([]);
@@ -68,6 +73,7 @@ export default function LibraryPage() {
               <th className="px-4 py-3">Tradition</th>
               <th className="px-4 py-3">Era</th>
               <th className="px-4 py-3 text-right">Passages</th>
+              <th className="px-4 py-3 text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-800/60">
@@ -81,6 +87,14 @@ export default function LibraryPage() {
                 <td className="px-4 py-2.5 text-stone-500">{w.era}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-stone-500">
                   {w.chunks > 0 ? w.chunks.toLocaleString() : "—"}
+                </td>
+                <td className="px-4 py-2.5 text-right">
+                  <Link
+                    href={`/read/${w.id}`}
+                    className="text-xs text-stone-500 transition hover:text-amber-300"
+                  >
+                    {readLabel(w, personas)} →
+                  </Link>
                 </td>
               </tr>
             ))}

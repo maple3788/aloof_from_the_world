@@ -109,6 +109,60 @@ def test_create_session_validates_mode_and_personas(client):
     assert created["persona_ids"] == ["socrates"]
 
 
+def test_session_language_roundtrip(client):
+    created = client.post(
+        "/sessions", json={"mode": "discuss", "language": "zh", "persona_ids": ["socrates"]}
+    )
+    assert created.status_code == 201
+    assert created.json()["language"] == "zh"
+    detail = client.get(f"/sessions/{created.json()['id']}").json()
+    assert detail["language"] == "zh"
+
+
+def test_session_language_defaults_and_normalizes(client):
+    default = client.post("/sessions", json={}).json()
+    assert default["language"] == "en"
+    bogus = client.post("/sessions", json={"language": "klingon"}).json()
+    assert bogus["language"] == "en"
+
+
+def test_chat_stream_passes_language_to_graph(client):
+    session_id = client.post("/sessions", json={"language": "zh"}).json()["id"]
+    response = client.post(
+        "/chat/stream", json={"session_id": session_id, "message": "什么是美德？"}
+    )
+    assert response.status_code == 200
+    assert '"language": "zh"' in response.text
+    assert StubGraph.last_input["language"] == "zh"
+
+
+async def test_language_column_migration(tmp_path, monkeypatch):
+    db_path = tmp_path / "legacy.db"
+    legacy = sqlite3.connect(db_path)
+    legacy.execute(
+        "CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT NOT NULL,"
+        " mode TEXT NOT NULL, persona_ids TEXT NOT NULL, created_at TEXT NOT NULL)"
+    )
+    legacy.execute(
+        "INSERT INTO sessions VALUES ('s1', 'old chat', 'discuss', '[\"socrates\"]', '2026-01-01')"
+    )
+    legacy.commit()
+    legacy.close()
+
+    monkeypatch.setattr(db_module, "get_settings", lambda: Settings(database_path=db_path))
+    database = await db_module.Database.connect()
+    try:
+        session = await database.get_session("s1")
+        assert session is not None
+        assert session["language"] == "en"
+        created = await database.create_session(
+            mode="discuss", persona_ids=["freud"], language="zh"
+        )
+        assert created["language"] == "zh"
+    finally:
+        await database.close()
+
+
 def test_chat_stream_tokens_and_persistence(client):
     session_id = client.post("/sessions", json={}).json()["id"]
     response = client.post(
@@ -180,3 +234,62 @@ def test_chat_stream_error_persists_partial_reply(client):
     detail = client.get(f"/sessions/{session_id}").json()
     assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
     assert detail["messages"][1]["content"] == "A partial thought."
+
+
+def test_chat_stream_saves_trace(client):
+    session_id = client.post("/sessions", json={"language": "zh"}).json()["id"]
+    response = client.post(
+        "/chat/stream", json={"session_id": session_id, "message": "什么是美德？"}
+    )
+    assert response.status_code == 200
+    assert '"trace_id"' in response.text
+
+    traces = client.get("/traces", params={"session_id": session_id}).json()
+    (trace,) = traces
+    assert trace["query"] == "什么是美德？"
+    assert trace["language"] == "zh"
+    assert trace["status"] == "ok"
+    assert trace["total_ms"] >= 0
+    assert "detail" not in trace  # list rows stay light
+
+    detail = client.get(f"/traces/{trace['id']}").json()
+    assert detail["detail"]["retrievals"] == []  # StubGraph records no spans
+    assert detail["session_id"] == session_id
+
+    assert client.get("/traces/nope").status_code == 404
+
+
+def test_traces_list_filters_and_paginates(client):
+    first = client.post("/sessions", json={}).json()["id"]
+    second = client.post("/sessions", json={}).json()["id"]
+    for sid in (first, second):
+        client.post("/chat/stream", json={"session_id": sid, "message": "hi"})
+
+    assert len(client.get("/traces").json()) == 2
+    filtered = client.get("/traces", params={"session_id": first}).json()
+    assert [t["session_id"] for t in filtered] == [first]
+    assert len(client.get("/traces", params={"limit": 1}).json()) == 1
+    assert len(client.get("/traces", params={"limit": 1, "offset": 1}).json()) == 1
+
+
+def test_chat_stream_error_saves_error_trace(client):
+    class FailingGraph:
+        async def astream_events(self, input, version="v2"):
+            raise RuntimeError("graph exploded")
+            yield  # pragma: no cover - make this an async generator
+
+    client.app.state.graph = FailingGraph()
+    session_id = client.post("/sessions", json={}).json()["id"]
+    client.post("/chat/stream", json={"session_id": session_id, "message": "hi"})
+
+    (trace,) = client.get("/traces").json()
+    assert trace["status"] == "error"
+    assert "graph exploded" in trace["error"]
+
+
+def test_traces_cascade_with_session(client):
+    session_id = client.post("/sessions", json={}).json()["id"]
+    client.post("/chat/stream", json={"session_id": session_id, "message": "hi"})
+    assert len(client.get("/traces").json()) == 1
+    client.delete(f"/sessions/{session_id}")
+    assert client.get("/traces").json() == []

@@ -1,11 +1,14 @@
+import asyncio
 import json
 import logging
+import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
+from app.agents.trace import TraceRecorder
 from app.config import get_settings
 from app.db import Database
 
@@ -65,15 +68,34 @@ async def chat_stream(body: ChatRequest, request: Request):
 
     messages = _to_langchain(history_rows) + [HumanMessage(content=body.message)]
     graph = request.app.state.graph
+    trace_id = uuid.uuid4().hex[:12]
+    recorder = TraceRecorder(
+        trace_id, session["id"], body.message, session["mode"], session["language"]
+    )
 
     async def event_stream():
         final_state: dict | None = None
         partial: dict[str, str] = {}
+        trace_saved = False
+
+        async def save_trace(status: str, error: str | None = None) -> None:
+            # Trace persistence must never break the SSE stream itself.
+            nonlocal trace_saved
+            if trace_saved:
+                return
+            trace_saved = True
+            speakers = (final_state or {}).get("speakers") or session["persona_ids"]
+            try:
+                await database.save_trace(recorder.finish(status, error, speakers))
+            except Exception:
+                logger.error("Failed to persist trace %s", trace_id, exc_info=True)
+
         try:
             yield _sse(
                 {
                     "type": "start",
                     "mode": session["mode"],
+                    "language": session["language"],
                     "persona_ids": session["persona_ids"],
                 }
             )
@@ -81,7 +103,10 @@ async def chat_stream(body: ChatRequest, request: Request):
                 {
                     "messages": messages,
                     "mode": session["mode"],
+                    "language": session["language"],
                     "persona_ids": session["persona_ids"],
+                    "work_id": session["work_id"],
+                    "trace": recorder,
                 },
                 version="v2",
             ):
@@ -111,9 +136,19 @@ async def chat_stream(body: ChatRequest, request: Request):
                     citations=resp.get("citations"),
                     critic_note=resp.get("critic_note"),
                 )
+            await save_trace("ok")
             yield _sse(
-                {"type": "done", "responses": [_public_response(r) for r in responses]}
+                {
+                    "type": "done",
+                    "trace_id": trace_id,
+                    "responses": [_public_response(r) for r in responses],
+                }
             )
+        except asyncio.CancelledError:
+            # Client aborted (session switch / unmount): record what completed,
+            # but don't persist a half-finished reply the user walked away from.
+            await save_trace("aborted")
+            raise
         except Exception as exc:
             # Persist whatever was streamed so the user's message isn't orphaned
             # with a vanished reply on reload.
@@ -129,6 +164,7 @@ async def chat_stream(body: ChatRequest, request: Request):
                             session["id"],
                             exc_info=True,
                         )
+            await save_trace("error", str(exc))
             yield _sse({"type": "error", "detail": str(exc)})
 
     return StreamingResponse(

@@ -1,15 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { strings } from "@/lib/i18n";
+import type { Language } from "@/lib/types";
 
 interface Props {
   disabled: boolean;
   placeholder: string;
+  language?: Language;
   onSend: (text: string) => void;
+  /** External text injection (e.g. a quoted passage); applied once per nonce. */
+  prefill?: { text: string; nonce: number } | null;
 }
 
-export default function Composer({ disabled, placeholder, onSend }: Props) {
+export default function Composer({
+  disabled,
+  placeholder,
+  language = "en",
+  onSend,
+  prefill = null,
+}: Props) {
   const [text, setText] = useState("");
+  const appliedNonceRef = useRef(0);
+  const s = strings(language);
+
+  useEffect(() => {
+    if (prefill && prefill.nonce !== appliedNonceRef.current) {
+      appliedNonceRef.current = prefill.nonce;
+      setText((prev) => prefill.text + prev);
+    }
+  }, [prefill]);
 
   const submit = () => {
     const trimmed = text.trim();
@@ -39,13 +59,10 @@ export default function Composer({ disabled, placeholder, onSend }: Props) {
           disabled={disabled || !text.trim()}
           className="rounded-xl border border-amber-700/50 bg-amber-500/15 px-4 py-3 text-sm font-medium text-amber-200 transition hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {disabled ? "Thinking…" : "Send"}
+          {disabled ? s.thinking : s.send}
         </button>
       </div>
-      <p className="mx-auto mt-2 max-w-3xl text-xs text-stone-600">
-        Enter to send · Shift+Enter for a new line · Personas speak from retrieved
-        passages, but they are still interpretations.
-      </p>
+      <p className="mx-auto mt-2 max-w-3xl text-xs text-stone-600">{s.composerHint}</p>
     </div>
   );
 }

@@ -32,6 +32,19 @@ flowchart LR
   quizzes — all from the same corpus.
 - **Grounding**: each reply is checked by a critic node and ships with clickable
   citations to the exact corpus passages it used.
+- **English / 中文**: pick the conversation language per session (sidebar EN/中文 toggle,
+  English default). Agents reply in that language; Chinese questions are translated
+  for retrieval over the English corpus, and quotes stay in the original English.
+- **Trace board**: every user query is traced through the pipeline — router decision,
+  translated retrieval query, per-persona retrieved passages, reply latencies, critic
+  verdicts, errors — and explorable at `/traces` (sidebar link). Traces cascade away
+  when their conversation is deleted.
+- **Reading room**: open any work in the library ("Read" link) and read it beside a chat
+  panel with its author's persona — dock the panel left or right, highlight a passage
+  and ask about it. Replies are grounded in the very work you're reading.
+- **Persona forge**: if the work's author has no persona card yet, one is forged on
+  demand — Wikipedia reference + LLM, validated, written as a YAML persona card, and
+  live without a server restart. Toggle with `PERSONA_AUTOGEN`.
 
 ## Stack
 
@@ -129,6 +142,10 @@ style_rules:
 works aren't in the corpus yet, add them to `backend/app/rag/corpus.yaml` and
 re-run `make ingest` (Gutenberg id only; ingestion is idempotent per work).
 
+Or skip the YAML entirely: in the reading room, opening a work whose author has
+no card forges one automatically (`POST /personas/generate` does the same via API).
+Generated cards land in the same directory — hand-edit or delete to regenerate.
+
 ## Docker
 
 ```bash
@@ -141,8 +158,8 @@ compose stack includes a Redis service and wires `REDIS_URL` automatically.
 ## Tests
 
 ```bash
-make test        # backend: 36 tests (RAG, personas, critic, graph, API — fakes, no keys needed)
-                 # frontend: eslint + 8 component tests (Vitest + Testing Library)
+make test        # backend: 92 tests (RAG, personas, forge, critic, graph, API — fakes, no keys needed)
+                 # frontend: eslint + 22 component tests (Vitest + Testing Library)
 ```
 
 ## Project layout
@@ -150,14 +167,14 @@ make test        # backend: 36 tests (RAG, personas, critic, graph, API — fake
 ```
 backend/
   app/
-    agents/      # LangGraph: router, personas, retriever, tutor, critic, graph
-    personas/    # YAML persona cards (one file per thinker)
+    agents/      # LangGraph: router, personas, retriever, tutor, critic, persona forge
+    personas/    # YAML persona cards (hand-authored + forged, one per thinker)
     rag/         # corpus.yaml manifest, loaders, Chroma store, ingest CLI
-    api/         # SSE chat streaming, sessions, library
+    api/         # SSE chat streaming, sessions, library/reading, traces
     db.py        # SQLite persistence
     cli.py       # terminal REPL
 frontend/
-  src/app/       # chat page + library page
-  src/components/# sidebar, persona picker, message list, composer
+  src/app/       # chat page + library + reading room (/read) + trace board
+  src/components/# sidebar, persona picker, message list, composer, reader panes
 data/            # corpus cache, Chroma vector store, SQLite db
 ```

@@ -25,3 +25,14 @@ def test_roundtable_prompt_names_other_speakers():
     freud = get_persona("freud")
     prompt = freud.system_prompt("(none)", other_speakers=["Socrates"])
     assert "Socrates" in prompt
+
+
+def test_system_prompt_appends_language_directive():
+    socrates = get_persona("socrates")
+    assert "简体中文" in socrates.system_prompt("(none)", language="zh")
+    assert "Reply in English." in socrates.system_prompt("(none)", language="en")
+
+
+def test_persona_cards_have_bilingual_greetings():
+    for card in load_personas().values():
+        assert card.greeting_zh, f"{card.id} is missing greeting_zh"

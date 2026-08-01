@@ -1,16 +1,20 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.agents.i18n import normalize_language
 from app.agents.personas import load_personas
 from app.agents.router import VALID_MODES
 from app.db import Database
+from app.rag.ingest import load_manifest
 
 router = APIRouter()
 
 
 class SessionCreate(BaseModel):
     mode: str = "discuss"
+    language: str = "en"
     persona_ids: list[str] = ["socrates"]
+    work_id: str | None = None
 
 
 @router.get("/sessions")
@@ -23,9 +27,17 @@ async def list_sessions(request: Request):
 async def create_session(body: SessionCreate, request: Request):
     database: Database = request.app.state.db
     mode = body.mode if body.mode in VALID_MODES else "discuss"
+    language = normalize_language(body.language)
     personas = load_personas()
     persona_ids = [p for p in body.persona_ids if p in personas] or ["socrates"]
-    return await database.create_session(mode=mode, persona_ids=persona_ids)
+    work = next((w for w in load_manifest() if w["id"] == body.work_id), None)
+    return await database.create_session(
+        mode=mode,
+        persona_ids=persona_ids,
+        language=language,
+        work_id=work["id"] if work else None,
+        title=f"Reading {work['title']}" if work else "New chat",
+    )
 
 
 @router.get("/sessions/{session_id}")

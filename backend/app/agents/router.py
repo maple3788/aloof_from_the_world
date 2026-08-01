@@ -1,5 +1,6 @@
 from langchain_core.messages import HumanMessage
 
+from app.agents.i18n import normalize_language
 from app.agents.personas import load_personas
 from app.config import get_settings
 
@@ -20,6 +21,8 @@ def router_node(state: dict) -> dict:
     mode = state.get("mode") or DEFAULT_MODE
     if mode not in VALID_MODES:
         mode = DEFAULT_MODE
+
+    language = normalize_language(state.get("language"))
 
     persona_ids = [pid for pid in (state.get("persona_ids") or []) if pid in personas]
     if not persona_ids:
@@ -43,4 +46,9 @@ def router_node(state: dict) -> dict:
             if mentioned:
                 speakers = mentioned
 
-    return {"mode": mode, "persona_ids": persona_ids, "speakers": speakers}
+    return {
+        "mode": mode,
+        "language": language,
+        "persona_ids": persona_ids,
+        "speakers": speakers,
+    }

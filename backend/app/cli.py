@@ -13,7 +13,7 @@ def format_citations(citations: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def chat_loop(mode: str, persona_ids: list[str]) -> None:
+async def chat_loop(mode: str, persona_ids: list[str], language: str = "en") -> None:
     graph = build_graph()
     personas = load_personas()
     history: list = []
@@ -21,9 +21,9 @@ async def chat_loop(mode: str, persona_ids: list[str]) -> None:
     print("Aloof from the World — REPL (type 'exit' to quit, 'mode study|discuss' to switch)")
     if mode == "discuss":
         names = ", ".join(personas[pid].name for pid in persona_ids)
-        print(f"Discuss mode with {names}.")
+        print(f"Discuss mode with {names} (language: {language}).")
     else:
-        print("Study mode with the Tutor.")
+        print(f"Study mode with the Tutor (language: {language}).")
 
     while True:
         try:
@@ -42,7 +42,12 @@ async def chat_loop(mode: str, persona_ids: list[str]) -> None:
 
         history.append(HumanMessage(content=user_input))
         state = await graph.ainvoke(
-            {"messages": history, "mode": mode, "persona_ids": persona_ids}
+            {
+                "messages": history,
+                "mode": mode,
+                "language": language,
+                "persona_ids": persona_ids,
+            }
         )
         for resp in state.get("responses", []):
             print(f"\n{resp['responder_name']}> {resp['content']}")
@@ -60,11 +65,12 @@ def main() -> None:
     parser.add_argument("--mode", choices=["discuss", "study"], default="discuss")
     parser.add_argument("--personas", default="socrates",
                         help="Comma-separated persona ids (several = roundtable)")
+    parser.add_argument("--language", choices=["en", "zh"], default="en")
     args = parser.parse_args()
 
     import asyncio
 
-    asyncio.run(chat_loop(args.mode, args.personas.split(",")))
+    asyncio.run(chat_loop(args.mode, args.personas.split(","), args.language))
 
 
 if __name__ == "__main__":

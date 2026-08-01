@@ -17,6 +17,8 @@ out/
 data/chroma/
 data/corpus/*.txt
 data/*.db
+data/*.db-shm
+data/*.db-wal
 
 # OS
 .DS_Store

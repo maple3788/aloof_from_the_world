@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     roundtable_max_personas: int = 3
     max_history_messages: int = 20
 
+    # Persona forge: auto-generate persona cards for corpus authors who lack one.
+    persona_autogen: bool = True
+    persona_gen_timeout: int = 90
+
     # Cache layer: unset redis_url disables caching entirely (local-first default).
     redis_url: str | None = None
     cache_ttl_retrieval: int = 3600

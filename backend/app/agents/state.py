@@ -1,4 +1,4 @@
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
@@ -26,6 +26,9 @@ class PersonaResponse(TypedDict, total=False):
 class AgentState(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
     mode: str  # "discuss" | "study"
+    language: str  # "en" | "zh"
     persona_ids: list[str]  # 1 persona = dialogue, several = roundtable
     speakers: list[str]  # personas speaking this turn (router output)
     responses: list[PersonaResponse]
+    work_id: str | None  # reading sessions: scope persona retrieval to this work
+    trace: Any  # per-request TraceRecorder (agents/trace.py); never serialized
