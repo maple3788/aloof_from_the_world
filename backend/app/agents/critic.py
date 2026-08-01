@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 
@@ -5,6 +6,8 @@ from langchain_core.language_models import BaseChatModel
 
 from app.agents.retriever import doc_to_excerpt, format_context
 from app.agents.state import Citation, PersonaResponse
+from app.cache import critic_key, get_cache
+from app.config import get_settings
 
 MAX_CITATIONS = 3
 
@@ -69,14 +72,19 @@ async def _critique_one(
     note: str | None = None
 
     if enabled and llm is not None and docs:
-        prompt = CRITIC_PROMPT.format(
-            response=response["content"], context=format_context(docs)
-        )
-        try:
-            result = await llm.ainvoke(prompt, config={"tags": ["critic"]})
-            data = _parse_critic_json(str(result.content))
-        except Exception:
-            data = None
+        context = format_context(docs)
+        cache = get_cache()
+        key = critic_key(response["content"], context)
+        data = await cache.get(key)
+        if data is None:
+            prompt = CRITIC_PROMPT.format(response=response["content"], context=context)
+            try:
+                result = await llm.ainvoke(prompt, config={"tags": ["critic"]})
+                data = _parse_critic_json(str(result.content))
+            except Exception:
+                data = None
+            if data:
+                await cache.set(key, data, get_settings().cache_ttl_critic)
         if data:
             indices = [i for i in data["citation_indices"] if isinstance(i, int)]
             chosen = [docs[i - 1] for i in indices if 1 <= i <= len(docs)]
@@ -98,7 +106,8 @@ async def _critique_one(
 async def critic_node(
     state: dict, llm: BaseChatModel | None = None, enabled: bool = True
 ) -> dict:
-    reviewed = [
-        await _critique_one(r, llm, enabled) for r in state.get("responses", [])
-    ]
-    return {"responses": reviewed}
+    # Responses are independent post-generation, so critiques run concurrently.
+    reviewed = await asyncio.gather(
+        *(_critique_one(r, llm, enabled) for r in state.get("responses", []))
+    )
+    return {"responses": list(reviewed)}

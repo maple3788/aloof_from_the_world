@@ -18,6 +18,7 @@ repl:
 
 test:
 	cd backend && uv run pytest -q
+	cd frontend && npm run lint && npm test
 
 docker:
 	docker compose up --build

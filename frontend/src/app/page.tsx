@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Composer from "@/components/Composer";
 import MessageList from "@/components/MessageList";
 import Sidebar from "@/components/Sidebar";
@@ -18,12 +18,27 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draftMode, setDraftMode] = useState<"discuss" | "study">("discuss");
   const [draftPersonas, setDraftPersonas] = useState<string[]>(["socrates"]);
+  const [maxPersonas, setMaxPersonas] = useState(3);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const sessionFetchAbortRef = useRef<AbortController | null>(null);
+
+  // Abort the in-flight stream/session fetch on unmount.
+  useEffect(() => {
+    return () => {
+      streamAbortRef.current?.abort();
+      sessionFetchAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     api.listPersonas().then(setPersonas).catch((e) => setError(String(e)));
     api.listSessions().then(setSessions).catch((e) => setError(String(e)));
+    api
+      .getHealth()
+      .then((h) => setMaxPersonas(h.max_personas))
+      .catch(() => {});
   }, []);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
@@ -31,17 +46,27 @@ export default function Home() {
   const currentPersonas = activeSession?.persona_ids ?? draftPersonas;
 
   const selectSession = useCallback(async (id: string) => {
+    // Switching sessions must kill any in-flight stream, or its tokens
+    // would keep rendering into the newly selected session's messages.
+    streamAbortRef.current?.abort();
+    sessionFetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    sessionFetchAbortRef.current = controller;
     setError(null);
     setActiveSessionId(id);
     try {
-      const detail = await api.getSession(id);
+      const detail = await api.getSession(id, controller.signal);
+      if (controller.signal.aborted) return;
       setMessages(detail.messages ?? []);
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setError(String(e));
     }
   }, []);
 
   const newChat = useCallback(() => {
+    streamAbortRef.current?.abort();
+    sessionFetchAbortRef.current?.abort();
     setActiveSessionId(null);
     setMessages([]);
     setError(null);
@@ -56,15 +81,18 @@ export default function Home() {
     [activeSessionId, newChat],
   );
 
-  const toggleDraftPersona = useCallback((id: string) => {
-    setDraftPersonas((prev) =>
-      prev.includes(id)
-        ? prev.filter((p) => p !== id)
-        : prev.length < 3
-          ? [...prev, id]
-          : prev,
-    );
-  }, []);
+  const toggleDraftPersona = useCallback(
+    (id: string) => {
+      setDraftPersonas((prev) =>
+        prev.includes(id)
+          ? prev.filter((p) => p !== id)
+          : prev.length < maxPersonas
+            ? [...prev, id]
+            : prev,
+      );
+    },
+    [maxPersonas],
+  );
 
   const send = useCallback(
     async (text: string) => {
@@ -86,6 +114,8 @@ export default function Home() {
 
         setMessages((prev) => [...prev, { role: "user", content: text }]);
         const streamIndex = new Map<string, number>();
+        const controller = new AbortController();
+        streamAbortRef.current = controller;
 
         await streamChat(sessionId, text, (event) => {
           if (event.type === "token") {
@@ -119,15 +149,18 @@ export default function Home() {
           } else if (event.type === "error") {
             setError(event.detail);
           }
-        });
+        }, controller.signal);
 
         api.listSessions().then(setSessions).catch(() => {});
       } catch (e) {
-        setError(String(e));
-        setMessages((prev) =>
-          prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
-        );
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          setError(String(e));
+          setMessages((prev) =>
+            prev.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
+          );
+        }
       } finally {
+        streamAbortRef.current = null;
         setStreaming(false);
       }
     },
@@ -145,6 +178,7 @@ export default function Home() {
         activeSessionId={activeSessionId}
         draftMode={draftMode}
         draftPersonas={draftPersonas}
+        maxPersonas={maxPersonas}
         onModeChange={setDraftMode}
         onTogglePersona={toggleDraftPersona}
         onNewChat={newChat}

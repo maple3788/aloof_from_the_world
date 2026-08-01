@@ -28,7 +28,7 @@ async def tutor_turn(state: dict, llm: BaseChatModel, store) -> dict:
     query = next(
         (m.content for m in reversed(history) if isinstance(m, HumanMessage)), ""
     )
-    docs = retrieve_for_tutor(store, query)
+    docs = await retrieve_for_tutor(store, query)
     system = TUTOR_SYSTEM.format(context=format_context(docs) or "(no passages retrieved)")
     content = await generate_reply(llm, system, history, tag="persona:tutor")
     return {

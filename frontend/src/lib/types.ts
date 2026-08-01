@@ -7,6 +7,14 @@ export interface Persona {
   greeting: string;
 }
 
+export interface Health {
+  status: string;
+  llm_provider: string;
+  embedding_provider: string;
+  max_personas: number;
+  cache: string;
+}
+
 export interface Citation {
   work_id: string;
   title: string;

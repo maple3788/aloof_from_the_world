@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 
 from app.agents.personas import load_personas
 from app.rag.ingest import load_manifest
+from app.rag.store import count_work_chunks
 
 router = APIRouter()
 
@@ -30,10 +31,7 @@ def list_works(request: Request):
         chunks = 0
         if store is not None:
             try:
-                result = store._collection.get(
-                    where={"work_id": work["id"]}, include=[]
-                )
-                chunks = len(result.get("ids", []))
+                chunks = count_work_chunks(store, work["id"])
             except Exception:
                 chunks = 0
         works.append({**{k: v for k, v in work.items()}, "chunks": chunks})

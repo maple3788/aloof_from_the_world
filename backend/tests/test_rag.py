@@ -1,5 +1,12 @@
 from app.rag.loaders import normalize_text, strip_gutenberg_boilerplate
-from app.rag.store import chunk_text, persona_where_filter
+from app.rag.store import (
+    chunk_text,
+    count_all_chunks,
+    count_work_chunks,
+    delete_work_chunks,
+    drop_collection,
+    persona_where_filter,
+)
 
 SAMPLE = """Header garbage
 *** START OF THE PROJECT GUTENBERG EBOOK THE REPUBLIC ***
@@ -45,3 +52,43 @@ def test_persona_where_filter_combines_with_or():
 
 def test_persona_where_filter_none_when_empty():
     assert persona_where_filter() is None
+
+
+class _FakeCollection:
+    name = "corpus"
+
+    def __init__(self):
+        self.deleted_where = None
+
+    def delete(self, where):
+        self.deleted_where = where
+
+    def get(self, where, include):
+        return {"ids": ["a", "b"]}
+
+    def count(self):
+        return 42
+
+
+class _FakeClient:
+    def __init__(self):
+        self.dropped = None
+
+    def delete_collection(self, name):
+        self.dropped = name
+
+
+class _FakeChroma:
+    def __init__(self):
+        self._collection = _FakeCollection()
+        self._client = _FakeClient()
+
+
+def test_store_helpers_wrap_chroma_internals():
+    store = _FakeChroma()
+    delete_work_chunks(store, "tao")
+    assert store._collection.deleted_where == {"work_id": "tao"}
+    assert count_work_chunks(store, "tao") == 2
+    assert count_all_chunks(store) == 42
+    drop_collection(store)
+    assert store._client.dropped == "corpus"

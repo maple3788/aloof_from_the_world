@@ -102,7 +102,7 @@ async def persona_turn(state: dict, llm: BaseChatModel, store) -> dict:
 
     for pid in speakers:
         persona = get_persona(pid)
-        docs: list[Document] = retrieve_for_persona(store, persona, query)
+        docs: list[Document] = await retrieve_for_persona(store, persona, query)
         others = [n for sp, n in names.items() if sp != pid]
         system = persona.system_prompt(
             format_context(docs), other_speakers=others, round_so_far=round_so_far

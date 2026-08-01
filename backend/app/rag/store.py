@@ -6,6 +6,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from app.cache import get_cache, retrieval_key
 from app.config import Settings, get_settings
 from app.llm import get_embeddings
 
@@ -57,7 +58,15 @@ def persona_where_filter(
     return {"$or": clauses}
 
 
-def retrieve(
+def _docs_to_json(docs: list[Document]) -> list[dict[str, Any]]:
+    return [{"page_content": d.page_content, "metadata": d.metadata} for d in docs]
+
+
+def _docs_from_json(payload: list[dict[str, Any]]) -> list[Document]:
+    return [Document(page_content=p["page_content"], metadata=p["metadata"]) for p in payload]
+
+
+async def retrieve(
     store: Chroma,
     query: str,
     k: int | None = None,
@@ -65,6 +74,13 @@ def retrieve(
 ) -> list[Document]:
     settings = get_settings()
     k = k or settings.retrieval_top_k
+
+    cache = get_cache()
+    key = retrieval_key(query, where, k)
+    cached = await cache.get(key)
+    if cached is not None:
+        return _docs_from_json(cached)
+
     try:
         results = store.similarity_search(query, k=k, filter=where)
     except Exception:
@@ -74,4 +90,28 @@ def retrieve(
     # yields too little to ground an answer.
     if len(results) < min(2, k) and where is not None:
         results = store.similarity_search(query, k=k)
+
+    await cache.set(key, _docs_to_json(results), settings.cache_ttl_retrieval)
     return results
+
+
+# --- Chroma internals, isolated here so the rest of the app stays on the
+# --- LangChain API. These touch chromadb private surfaces that may change
+# --- across minor versions.
+
+
+def delete_work_chunks(store: Chroma, work_id: str) -> None:
+    store._collection.delete(where={"work_id": work_id})
+
+
+def count_work_chunks(store: Chroma, work_id: str) -> int:
+    result = store._collection.get(where={"work_id": work_id}, include=[])
+    return len(result.get("ids", []))
+
+
+def count_all_chunks(store: Chroma) -> int:
+    return store._collection.count()
+
+
+def drop_collection(store: Chroma) -> None:
+    store._client.delete_collection(store._collection.name)

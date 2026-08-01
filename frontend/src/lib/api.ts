@@ -1,4 +1,4 @@
-import type { Persona, Session, StreamEvent, Work } from "./types";
+import type { Health, Persona, Session, StreamEvent, Work } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -21,11 +21,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ mode, persona_ids: personaIds }),
     }),
-  getSession: (id: string) => request<Session>(`/sessions/${id}`),
+  getSession: (id: string, signal?: AbortSignal) =>
+    request<Session>(`/sessions/${id}`, { signal }),
   deleteSession: (id: string) =>
     request<void>(`/sessions/${id}`, { method: "DELETE" }),
   listPersonas: () => request<Persona[]>("/personas"),
   listWorks: () => request<Work[]>("/library/works"),
+  getHealth: () => request<Health>("/health"),
 };
 
 export async function streamChat(

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await db.init_db()
+    app.state.db = await db.Database.connect()
     app.state.graph = build_graph()
     try:
         from app.rag.store import get_vector_store
@@ -25,7 +25,10 @@ async def lifespan(app: FastAPI):
             "Vector store unavailable at startup; retrieval will fail lazily", exc_info=True
         )
         app.state.store = None
-    yield
+    try:
+        yield
+    finally:
+        await app.state.db.close()
 
 
 def create_app() -> FastAPI:
@@ -50,6 +53,8 @@ def create_app() -> FastAPI:
             "status": "ok",
             "llm_provider": settings.llm_provider.value,
             "embedding_provider": settings.embedding_provider.value,
+            "max_personas": settings.roundtable_max_personas,
+            "cache": "redis" if settings.redis_url else "off",
         }
 
     return app

@@ -5,13 +5,15 @@ from app.rag.store import persona_where_filter, retrieve
 EXCERPT_LEN = 280
 
 
-def retrieve_for_persona(store, persona, query: str, k: int | None = None) -> list[Document]:
+async def retrieve_for_persona(
+    store, persona, query: str, k: int | None = None
+) -> list[Document]:
     where = persona_where_filter(authors=persona.authors, traditions=persona.traditions)
-    return retrieve(store, query, k=k, where=where)
+    return await retrieve(store, query, k=k, where=where)
 
 
-def retrieve_for_tutor(store, query: str, k: int | None = None) -> list[Document]:
-    return retrieve(store, query, k=k)
+async def retrieve_for_tutor(store, query: str, k: int | None = None) -> list[Document]:
+    return await retrieve(store, query, k=k)
 
 
 def format_context(docs: list[Document]) -> str:

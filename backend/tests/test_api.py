@@ -1,3 +1,4 @@
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +13,10 @@ from app.main import app
 class StubGraph:
     """Mimics the compiled LangGraph: one token event, then the final state."""
 
+    last_input: dict | None = None
+
     async def astream_events(self, input, version="v2"):
+        StubGraph.last_input = input
         yield {
             "event": "on_chat_model_stream",
             "tags": ["persona:socrates"],
@@ -60,6 +64,8 @@ def client(tmp_path, monkeypatch):
 def test_health(client):
     body = client.get("/health").json()
     assert body["status"] == "ok"
+    assert body["max_personas"] == 3
+    assert body["cache"] == "off"
 
 
 def test_personas_lists_starters(client):
@@ -67,6 +73,15 @@ def test_personas_lists_starters(client):
     ids = {p["id"] for p in personas}
     assert {"socrates", "nietzsche", "freud", "confucius"} <= ids
     assert all(p["greeting"] for p in personas)
+
+
+def test_database_uses_wal_mode(client, tmp_path):
+    journal_mode = (
+        sqlite3.connect(tmp_path / "test.db")
+        .execute("PRAGMA journal_mode")
+        .fetchone()[0]
+    )
+    assert journal_mode == "wal"
 
 
 def test_session_crud(client):
@@ -118,3 +133,50 @@ def test_chat_stream_unknown_session_404(client):
         "/chat/stream", json={"session_id": "missing", "message": "hi"}
     )
     assert response.status_code == 404
+
+
+def test_chat_rejects_overlong_message(client):
+    session_id = client.post("/sessions", json={}).json()["id"]
+    response = client.post(
+        "/chat/stream", json={"session_id": session_id, "message": "x" * 4001}
+    )
+    assert response.status_code == 422
+
+
+def test_chat_history_truncated_for_llm(client, monkeypatch):
+    import app.api.chat as chat_module
+
+    monkeypatch.setattr(
+        chat_module, "get_settings", lambda: Settings(max_history_messages=2)
+    )
+    session_id = client.post("/sessions", json={}).json()["id"]
+    for i in range(2):
+        client.post(
+            "/chat/stream", json={"session_id": session_id, "message": f"turn {i}"}
+        )
+    # DB now holds 4 rows (2 user + 2 assistant); only 2 may reach the LLM.
+    client.post("/chat/stream", json={"session_id": session_id, "message": "turn 2"})
+    assert len(StubGraph.last_input["messages"]) == 3  # 2 truncated + 1 new
+
+
+def test_chat_stream_error_persists_partial_reply(client):
+    class FailingGraph:
+        async def astream_events(self, input, version="v2"):
+            yield {
+                "event": "on_chat_model_stream",
+                "tags": ["persona:socrates"],
+                "data": {"chunk": SimpleNamespace(content="A partial thought.")},
+            }
+            raise RuntimeError("graph exploded mid-stream")
+
+    client.app.state.graph = FailingGraph()
+    session_id = client.post("/sessions", json={}).json()["id"]
+    response = client.post(
+        "/chat/stream", json={"session_id": session_id, "message": "What is virtue?"}
+    )
+    assert response.status_code == 200
+    assert '"type": "error"' in response.text
+
+    detail = client.get(f"/sessions/{session_id}").json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][1]["content"] == "A partial thought."

@@ -1,6 +1,7 @@
 from langchain_core.documents import Document
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-from app.agents.critic import _heuristic_citations, _parse_critic_json
+from app.agents.critic import _heuristic_citations, _parse_critic_json, critic_node
 
 
 def doc(work: str, i: int) -> Document:
@@ -40,3 +41,24 @@ def test_parse_critic_json_extracts_object_from_prose():
 def test_parse_critic_json_rejects_garbage():
     assert _parse_critic_json("no json here") is None
     assert _parse_critic_json('{"supported": true}') is None
+
+
+async def test_critic_node_reviews_all_responses_in_order():
+    def resp(pid: str, chunk: int) -> dict:
+        return {
+            "responder": pid,
+            "responder_name": pid.title(),
+            "content": f"{pid} speaks.",
+            "citations": [],
+            "critic_note": None,
+            "docs": [doc("republic", chunk)],
+        }
+
+    llm = FakeListChatModel(
+        responses=['{"supported": true, "citation_indices": [1], "note": null}']
+    )
+    out = await critic_node(
+        {"responses": [resp("a", 1), resp("b", 2), resp("c", 3)]}, llm=llm, enabled=True
+    )
+    assert [r["responder"] for r in out["responses"]] == ["a", "b", "c"]
+    assert all(r["citations"] for r in out["responses"])

@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     retrieval_top_k: int = 6
     critic_enabled: bool = True
     roundtable_max_personas: int = 3
+    max_history_messages: int = 20
+
+    # Cache layer: unset redis_url disables caching entirely (local-first default).
+    redis_url: str | None = None
+    cache_ttl_retrieval: int = 3600
+    cache_ttl_critic: int = 86400
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

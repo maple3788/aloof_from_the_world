@@ -10,6 +10,7 @@ interface Props {
   activeSessionId: string | null;
   draftMode: "discuss" | "study";
   draftPersonas: string[];
+  maxPersonas: number;
   onModeChange: (mode: "discuss" | "study") => void;
   onTogglePersona: (id: string) => void;
   onNewChat: () => void;
@@ -23,6 +24,7 @@ export default function Sidebar({
   activeSessionId,
   draftMode,
   draftPersonas,
+  maxPersonas,
   onModeChange,
   onTogglePersona,
   onNewChat,
@@ -55,6 +57,7 @@ export default function Sidebar({
           personas={personas}
           mode={active ? active.mode : draftMode}
           selected={active ? active.persona_ids : draftPersonas}
+          maxPersonas={maxPersonas}
           locked={locked}
           onModeChange={onModeChange}
           onToggle={onTogglePersona}

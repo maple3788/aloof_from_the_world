@@ -3,12 +3,11 @@
 import type { Persona } from "@/lib/types";
 import { personaTheme } from "@/lib/colors";
 
-const MAX_PERSONAS = 3;
-
 interface Props {
   personas: Persona[];
   mode: "discuss" | "study";
   selected: string[];
+  maxPersonas: number;
   locked: boolean;
   onModeChange: (mode: "discuss" | "study") => void;
   onToggle: (id: string) => void;
@@ -18,6 +17,7 @@ export default function PersonaPicker({
   personas,
   mode,
   selected,
+  maxPersonas,
   locked,
   onModeChange,
   onToggle,
@@ -44,7 +44,7 @@ export default function PersonaPicker({
       {mode === "discuss" ? (
         <div className="space-y-1.5">
           <p className="text-xs text-stone-500">
-            Choose up to {MAX_PERSONAS} thinkers ({selected.length}/{MAX_PERSONAS})
+            Choose up to {maxPersonas} thinkers ({selected.length}/{maxPersonas})
             {selected.length > 1 && " — roundtable"}
           </p>
           {personas.map((p) => {
@@ -53,7 +53,7 @@ export default function PersonaPicker({
             return (
               <button
                 key={p.id}
-                disabled={locked || (!active && selected.length >= MAX_PERSONAS)}
+                disabled={locked || (!active && selected.length >= maxPersonas)}
                 onClick={() => onToggle(p.id)}
                 className={`w-full rounded-lg border px-3 py-2 text-left transition disabled:opacity-50 ${
                   active

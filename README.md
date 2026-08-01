@@ -92,6 +92,20 @@ Embeddings default to `chroma-default` (bundled local MiniLM, zero config). If y
 switch `EMBEDDING_PROVIDER`, re-run `make ingest` — embedding spaces are not
 compatible across providers.
 
+## Optional: Redis cache
+
+Retrieval results and critic responses can be cached in Redis to cut repeat-query
+latency. It is off by default — set `REDIS_URL` in `backend/.env` to enable:
+
+```bash
+docker run -d -p 6379:6379 redis:7-alpine   # or use the compose stack
+# backend/.env
+REDIS_URL=redis://localhost:6379/0
+```
+
+If Redis is unreachable the app simply runs uncached. Re-running `make ingest`
+flushes stale retrieval entries automatically.
+
 ## Add a new thinker
 
 Personas are data, not code. Drop a YAML card into `backend/app/personas/`:
@@ -101,7 +115,7 @@ id: marcus
 name: Marcus Aurelius
 era: Roman Empire, 121-180 AD
 tradition: Stoicism
-color: sky
+color: amber
 authors: [Marcus Aurelius]      # matched against corpus metadata
 traditions: [Stoicism]          # fallback scope for retrieval
 greeting: "Waste no more time arguing what a good man should be. Be one."
@@ -118,15 +132,17 @@ re-run `make ingest` (Gutenberg id only; ingestion is idempotent per work).
 ## Docker
 
 ```bash
-make docker      # builds backend + frontend; mounts ./data for the vector store
+make docker      # builds backend + frontend + redis; mounts ./data for the vector store
 ```
 
-Ollama stays on the host; the backend reaches it via `host.docker.internal`.
+Ollama stays on the host; the backend reaches it via `host.docker.internal`. The
+compose stack includes a Redis service and wires `REDIS_URL` automatically.
 
 ## Tests
 
 ```bash
-make test        # 24 tests: RAG, personas, critic, graph, API (fakes — no keys needed)
+make test        # backend: 36 tests (RAG, personas, critic, graph, API — fakes, no keys needed)
+                 # frontend: eslint + 8 component tests (Vitest + Testing Library)
 ```
 
 ## Project layout

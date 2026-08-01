@@ -1,18 +1,22 @@
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
-from app import db
+from app.config import get_settings
+from app.db import Database
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 class ChatRequest(BaseModel):
     session_id: str
-    message: str = Field(min_length=1)
+    message: str = Field(min_length=1, max_length=4000)
 
 
 def _sse(payload: dict) -> str:
@@ -45,21 +49,26 @@ def _public_response(resp: dict) -> dict:
 
 @router.post("/chat/stream")
 async def chat_stream(body: ChatRequest, request: Request):
-    session = await db.get_session(body.session_id)
+    database: Database = request.app.state.db
+    session = await database.get_session(body.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    history_rows = await db.get_messages(session["id"])
-    await db.add_message(session["id"], "user", body.message)
+    history_rows = await database.get_messages(session["id"])
+    # Only the recent tail goes to the LLM; the full history stays in the DB.
+    # Prompt size would otherwise grow quadratically over a session.
+    history_rows = history_rows[-get_settings().max_history_messages :]
+    await database.add_message(session["id"], "user", body.message)
     if session["title"] == "New chat":
         title = body.message[:40].rstrip() + ("..." if len(body.message) > 40 else "")
-        await db.rename_session(session["id"], title)
+        await database.rename_session(session["id"], title)
 
     messages = _to_langchain(history_rows) + [HumanMessage(content=body.message)]
     graph = request.app.state.graph
 
     async def event_stream():
         final_state: dict | None = None
+        partial: dict[str, str] = {}
         try:
             yield _sse(
                 {
@@ -85,6 +94,7 @@ async def chat_stream(body: ChatRequest, request: Request):
                     if persona:
                         text = _chunk_text(event["data"]["chunk"].content)
                         if text:
+                            partial[persona] = partial.get(persona, "") + text
                             yield _sse(
                                 {"type": "token", "persona": persona, "content": text}
                             )
@@ -93,7 +103,7 @@ async def chat_stream(body: ChatRequest, request: Request):
 
             responses = (final_state or {}).get("responses", [])
             for resp in responses:
-                await db.add_message(
+                await database.add_message(
                     session["id"],
                     "assistant",
                     resp["content"],
@@ -105,6 +115,20 @@ async def chat_stream(body: ChatRequest, request: Request):
                 {"type": "done", "responses": [_public_response(r) for r in responses]}
             )
         except Exception as exc:
+            # Persist whatever was streamed so the user's message isn't orphaned
+            # with a vanished reply on reload.
+            for pid, content in partial.items():
+                if content.strip():
+                    try:
+                        await database.add_message(
+                            session["id"], "assistant", content.strip(), persona_id=pid
+                        )
+                    except Exception:
+                        logger.error(
+                            "Failed to persist partial reply for session %s",
+                            session["id"],
+                            exc_info=True,
+                        )
             yield _sse({"type": "error", "detail": str(exc)})
 
     return StreamingResponse(

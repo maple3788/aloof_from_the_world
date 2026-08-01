@@ -1,13 +1,22 @@
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
 import yaml
 from langchain_core.documents import Document
 
+from app.cache import get_cache
 from app.config import get_settings
 from app.rag.loaders import load_work_text
-from app.rag.store import chunk_text, get_vector_store
+from app.rag.store import (
+    COLLECTION_NAME,
+    chunk_text,
+    count_all_chunks,
+    delete_work_chunks,
+    drop_collection,
+    get_vector_store,
+)
 
 CORPUS_MANIFEST = Path(__file__).parent / "corpus.yaml"
 BATCH_SIZE = 128
@@ -30,7 +39,7 @@ def ingest_work(store, work: dict, corpus_dir: Path) -> int:
         print(f"  SKIP {work['title']}: no text after cleaning", file=sys.stderr)
         return 0
 
-    store._collection.delete(where={"work_id": work["id"]})
+    delete_work_chunks(store, work["id"])
 
     docs = [
         Document(
@@ -68,11 +77,11 @@ def main() -> None:
     store = get_vector_store(settings)
 
     if args.stats:
-        print(f"chunks in '{store._collection.name}': {store._collection.count()}")
+        print(f"chunks in '{COLLECTION_NAME}': {count_all_chunks(store)}")
         return
 
     if args.reset:
-        store._client.delete_collection(store._collection.name)
+        drop_collection(store)
         store = get_vector_store(settings)
         print("Collection reset.")
 
@@ -86,6 +95,11 @@ def main() -> None:
     for work in works:
         total += ingest_work(store, work, settings.corpus_dir)
     print(f"Done. {total} chunks ingested.")
+
+    # Cached retrieval results may now be stale.
+    removed = asyncio.run(get_cache().clear_prefix("rag"))
+    if removed:
+        print(f"Flushed {removed} cached retrieval entries.")
 
 
 if __name__ == "__main__":
