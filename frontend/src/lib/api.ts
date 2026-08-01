@@ -2,15 +2,26 @@ import type {
   Health,
   Language,
   Persona,
+  PersonaDetail,
   Session,
   StreamEvent,
   TraceDetail,
   TraceSummary,
+  UploadResult,
   Work,
   WorkText,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+export class AmbiguousMatchError extends Error {
+  candidate: Persona;
+
+  constructor(candidate: Persona) {
+    super("Author nearly matches an existing persona");
+    this.candidate = candidate;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -41,6 +52,7 @@ export const api = {
   deleteSession: (id: string) =>
     request<void>(`/sessions/${id}`, { method: "DELETE" }),
   listPersonas: () => request<Persona[]>("/personas"),
+  getPersona: (id: string) => request<PersonaDetail>(`/personas/${id}`),
   generatePersona: (workId: string) =>
     request<Persona>("/personas/generate", {
       method: "POST",
@@ -48,6 +60,18 @@ export const api = {
     }),
   listWorks: () => request<Work[]>("/library/works"),
   getWorkText: (workId: string) => request<WorkText>(`/library/works/${workId}/text`),
+  uploadWork: async (form: FormData): Promise<UploadResult> => {
+    // No JSON content-type: the browser sets the multipart boundary.
+    const res = await fetch(`${API_URL}/library/uploads`, { method: "POST", body: form });
+    if (res.status === 409) {
+      const body = (await res.json()) as { candidate: Persona };
+      throw new AmbiguousMatchError(body.candidate);
+    }
+    if (!res.ok) {
+      throw new Error(`POST /library/uploads failed: ${res.status}`);
+    }
+    return res.json() as Promise<UploadResult>;
+  },
   getHealth: () => request<Health>("/health"),
   listTraces: (sessionId?: string, limit = 50, offset = 0) => {
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });

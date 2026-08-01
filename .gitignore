@@ -16,6 +16,7 @@ out/
 # Data (regenerable)
 data/chroma/
 data/corpus/*.txt
+data/uploads/
 data/*.db
 data/*.db-shm
 data/*.db-wal

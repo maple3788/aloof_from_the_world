@@ -6,8 +6,8 @@ the latest session entry, and "Next steps".
 ## Current state snapshot
 
 - Multi-agent RAG chat: FastAPI + LangGraph + Chroma/SQLite backend, Next.js 16 SSE frontend.
-- **92 backend + 22 frontend tests passing** (`make test` = pytest + eslint + vitest);
-  ruff lint clean; frontend `tsc --noEmit` + eslint clean.
+- **129 backend + 34 frontend tests passing** (`make test` = pytest + eslint + vitest);
+  ruff lint clean; frontend `tsc --noEmit` + eslint clean; `next build` green.
 - Any **OpenAI-compatible API** works via `OPENAI_BASE_URL` (DeepSeek verified — see
   `backend/.env.example`); user runs hosted DeepSeek as the daily driver.
 - SQLite is a **single shared connection** on `app.state.db` (WAL mode, `asyncio.Lock`),
@@ -39,8 +39,56 @@ the latest session entry, and "Next steps".
   server-forced (retrieval scoping invariant). `POST /personas/generate` (idempotent
   200/201, 403/502/504 failure modes); `PERSONA_AUTOGEN` + `PERSONA_GEN_TIMEOUT` knobs.
   First forged card (Marcus Aurelius, live-verified) is committed.
+- **Persona detail view** (`/personas/{id}`): full card + linked works (manifest and
+  uploads) via `GET /personas/{id}`; library speaker cards and author cells link there;
+  "Start a conversation" preselects the persona on the main chat (`/?personas=`).
+- **Upload pipeline** (`/upload` + `POST /library/uploads`): user texts
+  (.txt/.md/.pdf/.epub — `pypdf`/`ebooklib`, magic-byte checks, 2 MB cap, per-IP limit)
+  are validated, author-matched (deterministic: exact / folded-probable w/ 409 confirm /
+  none), and embedded at request time. Texts live in `data/uploads/`, rows in SQLite
+  `uploaded_works`, **merged with `corpus.yaml` at read time** — the curated manifest is
+  never mutated at runtime. Uploaded works flow through library, reading room, sessions,
+  and persona detail. No-match uploads **eagerly forge** their persona (non-fatal);
+  confirmed name variants are appended to the card's `authors` (`add_author_variant`).
+  Knobs: `UPLOAD_ENABLED`, `MAX_UPLOAD_MB`, `UPLOAD_TIMEOUT`; `ingest --uploads`
+  re-indexes after `--reset`.
 
 ## Session log
+
+### 2026-08-01 (night) — Persona detail view + upload pipeline
+
+- Planned with the planner agent; user's four calls: **PDF/EPUB from the start**,
+  **confirm-on-ambiguous**, **eager forge** at upload, **default limits** (2 MB cap,
+  uploads enabled, in-memory rate limit).
+- Phase 1: `GET /personas/{id}` (full card + works); `/personas/[id]` page (EN/中文
+  toggle, works → reading room, "Start a conversation" → `/?personas=` preselect —
+  `useSearchParams` inside Suspense, a Next 16 requirement); library speaker cards and
+  corpus author cells became links.
+- Phase 2: `POST /library/uploads` (multipart; txt/md/pdf/epub extraction via
+  `pypdf`/`ebooklib`, magic-byte sniffing; 413/415/422 typed validation; 20/hr per-IP
+  sliding-window 429). Texts → `data/uploads/`, metadata → SQLite `uploaded_works`
+  (indexing → ready); `merge_works` unifies them with `corpus.yaml` at read time —
+  **the curated manifest is never mutated at runtime**. Author match is deterministic
+  (no LLM): exact → attach; folded probable → 409 + confirm (`"decline"` sentinel —
+  FastAPI coerces empty form fields to `None`); none → persona-less. Ingest extracted
+  to `ingest_text` (metadata gains `source`, `gutenberg_id` optional), runs via
+  `asyncio.to_thread` + `wait_for`; failure cleans chunks + row + file. Sessions,
+  works list, text endpoint, and `/personas/generate` all read the merged registry.
+- Phase 3: eager `get_or_generate` on no-match (non-fatal — `persona_status`:
+  created/existing/failed/skipped); `add_author_variant` (immutable `replace`) appends
+  confirmed spellings to card `authors` so future matches are exact — YAML formatting
+  is normalized on rewrite, content untouched. `ingest --uploads` re-indexes uploads
+  after `--reset`.
+- Coherence fix found in smoke: persona detail endpoint also merges uploads.
+- Frontend: `/upload` page (tradition datalist, confirm panel, persona_status notes);
+  library "+ Add a text" + "uploaded" chip — the library page stays English-hardcoded,
+  so two planned i18n keys were dropped as dead code. Deps added: `pypdf`, `ebooklib`,
+  `beautifulsoup4`, `python-multipart`.
+- Tests: 129 backend (was 92; new `test_persona_detail.py`, `test_uploads.py` —
+  hermetic PDF/EPUB fixtures built in-test, forge monkeypatched to tmp dirs so repo
+  YAML is never mutated) + 34 frontend (was 22; first page-level tests). ruff / tsc /
+  eslint / `next build` clean. Live smoke (isolated data dirs, autogen off): txt →
+  6 chunks, pdf → exact Marcus match, merged list/text/session, 409/415 paths green.
 
 ### 2026-08-01 (evening) — Reading room + persona forge
 
@@ -211,6 +259,17 @@ Reading-room stretch (deferred 2026-08-01):
 - Drag-resize splitter (fixed 60/40 + dock toggle for now); reading-position persistence.
 - `work_id` on trace rows + trace filtering by work; shared `useChatStream` hook
   (token accumulation is duplicated between `page.tsx` and `ReaderChat`).
+
+Upload pipeline follow-ups (deferred 2026-08-01):
+
+- **No edit/delete UI** for uploads or personas — manual removal: delete the
+  `data/uploads/*.txt` file + its `uploaded_works` row, then `ingest --reset --uploads`
+  (or `delete_work_chunks` for the id).
+- LLM metadata inference (prefill the upload form from content) — the planned optional
+  piece, skipped to keep author-matching deterministic.
+- Duplicate-content detection; PDFs larger than 2 MB need a `MAX_UPLOAD_MB` bump.
+- Wrong-author uploads forge junk personas under eager mode — mitigated by the confirm
+  step; cleanup is manual (see above).
 
 Watch:
 

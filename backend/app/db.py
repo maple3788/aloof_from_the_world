@@ -44,6 +44,17 @@ CREATE TABLE IF NOT EXISTS traces (
 );
 CREATE INDEX IF NOT EXISTS idx_traces_session ON traces(session_id);
 CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
+CREATE TABLE IF NOT EXISTS uploaded_works (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    author TEXT NOT NULL,
+    tradition TEXT NOT NULL,
+    era TEXT NOT NULL,
+    text_path TEXT NOT NULL,
+    chunks INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -79,6 +90,20 @@ def _row_to_trace(row: aiosqlite.Row, include_detail: bool = False) -> dict[str,
     if include_detail:
         trace["detail"] = json.loads(row["detail"])
     return trace
+
+
+def _row_to_uploaded_work(row: aiosqlite.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "author": row["author"],
+        "tradition": row["tradition"],
+        "era": row["era"],
+        "text_path": row["text_path"],
+        "chunks": row["chunks"],
+        "status": row["status"],
+        "created_at": row["created_at"],
+    }
 
 
 def _row_to_message(row: aiosqlite.Row) -> dict[str, Any]:
@@ -293,3 +318,63 @@ class Database:
             )
             row = await cursor.fetchone()
             return _row_to_trace(row, include_detail=True) if row else None
+
+    async def add_uploaded_work(self, row: dict) -> dict:
+        work = {**row, "created_at": _now()}
+        async with self._lock:
+            await self._conn.execute(
+                """INSERT INTO uploaded_works
+                   (id, title, author, tradition, era, text_path, chunks, status, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    work["id"],
+                    work["title"],
+                    work["author"],
+                    work["tradition"],
+                    work["era"],
+                    work["text_path"],
+                    work.get("chunks", 0),
+                    work["status"],
+                    work["created_at"],
+                ),
+            )
+            await self._conn.commit()
+        return work
+
+    async def list_uploaded_works(self) -> list[dict]:
+        async with self._lock:
+            cursor = await self._conn.execute(
+                "SELECT * FROM uploaded_works ORDER BY created_at DESC"
+            )
+            return [_row_to_uploaded_work(row) for row in await cursor.fetchall()]
+
+    async def get_uploaded_work(self, work_id: str) -> dict | None:
+        async with self._lock:
+            cursor = await self._conn.execute(
+                "SELECT * FROM uploaded_works WHERE id = ?", (work_id,)
+            )
+            row = await cursor.fetchone()
+            return _row_to_uploaded_work(row) if row else None
+
+    async def update_upload_status(
+        self, work_id: str, status: str, chunks: int | None = None
+    ) -> None:
+        async with self._lock:
+            if chunks is None:
+                await self._conn.execute(
+                    "UPDATE uploaded_works SET status = ? WHERE id = ?",
+                    (status, work_id),
+                )
+            else:
+                await self._conn.execute(
+                    "UPDATE uploaded_works SET status = ?, chunks = ? WHERE id = ?",
+                    (status, chunks, work_id),
+                )
+            await self._conn.commit()
+
+    async def delete_uploaded_work(self, work_id: str) -> None:
+        async with self._lock:
+            await self._conn.execute(
+                "DELETE FROM uploaded_works WHERE id = ?", (work_id,)
+            )
+            await self._conn.commit()

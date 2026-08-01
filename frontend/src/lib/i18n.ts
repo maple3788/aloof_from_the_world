@@ -56,6 +56,32 @@ export interface Strings {
   summonFailed: string;
   retrySummon: string;
   placeholderReading: (name: string) => string;
+  personaVoice: string;
+  personaWorldview: string;
+  personaStyleRules: string;
+  personaWorks: string;
+  passages: (n: number) => string;
+  startConversation: string;
+  readWork: string;
+  personaNotFound: string;
+  uploadHeading: string;
+  uploadFile: string;
+  uploadWorkTitle: string;
+  uploadAuthor: string;
+  uploadTradition: string;
+  uploadEra: string;
+  uploadSubmit: string;
+  uploading: string;
+  uploadSuccess: (title: string) => string;
+  uploadFailed: string;
+  uploadTooBig: string;
+  uploadBadType: string;
+  uploadMissing: string;
+  confirmMatch: (name: string) => string;
+  useExisting: string;
+  createSeparate: string;
+  personaForged: string;
+  personaForgeFailed: string;
 }
 
 const STRINGS: Record<Language, Strings> = {
@@ -123,6 +149,34 @@ const STRINGS: Record<Language, Strings> = {
     summonFailed: "Could not summon the author — reading only.",
     retrySummon: "Try again",
     placeholderReading: (name: string) => `Ask ${name} about the text…`,
+    personaVoice: "Voice",
+    personaWorldview: "Worldview",
+    personaStyleRules: "Style rules",
+    personaWorks: "Works in the library",
+    passages: (n: number) => `${n.toLocaleString()} passages`,
+    startConversation: "Start a conversation →",
+    readWork: "Read",
+    personaNotFound: "Persona not found.",
+    uploadHeading: "Add a text to the library",
+    uploadFile: "File (.txt, .md, .pdf, .epub)",
+    uploadWorkTitle: "Title",
+    uploadAuthor: "Author",
+    uploadTradition: "Tradition",
+    uploadEra: "Era",
+    uploadSubmit: "Upload and index",
+    uploading: "Uploading and indexing — large texts can take a minute…",
+    uploadSuccess: (title: string) => `Added “${title}” to the library.`,
+    uploadFailed: "Upload failed.",
+    uploadTooBig: "File too large.",
+    uploadBadType: "Unsupported file type.",
+    uploadMissing: "Choose a file and fill in title and author.",
+    confirmMatch: (name: string) =>
+      `The author's name is close to ${name}, who already has a persona. Attach this text to them?`,
+    useExisting: "Yes, attach to this persona",
+    createSeparate: "No, keep separate",
+    personaForged: "A new persona was forged for this author.",
+    personaForgeFailed:
+      "Persona forging failed — you can summon them later from the reading room.",
   },
   zh: {
     tagline: "与逝去的伟大思想家对话，根植于他们的著作。",
@@ -184,6 +238,33 @@ const STRINGS: Record<Language, Strings> = {
     summonFailed: "无法召唤作者——仅供阅读。",
     retrySummon: "重试",
     placeholderReading: (name: string) => `就文本向${name}提问…`,
+    personaVoice: "言谈",
+    personaWorldview: "世界观",
+    personaStyleRules: "行文准则",
+    personaWorks: "书库中的著作",
+    passages: (n: number) => `${n.toLocaleString()} 段`,
+    startConversation: "开始对话 →",
+    readWork: "阅读",
+    personaNotFound: "未找到该角色。",
+    uploadHeading: "向书库添加文本",
+    uploadFile: "文件（.txt、.md、.pdf、.epub）",
+    uploadWorkTitle: "标题",
+    uploadAuthor: "作者",
+    uploadTradition: "传统",
+    uploadEra: "时代",
+    uploadSubmit: "上传并索引",
+    uploading: "正在上传并索引——大文本可能需要一分钟…",
+    uploadSuccess: (title: string) => `已将《${title}》加入书库。`,
+    uploadFailed: "上传失败。",
+    uploadTooBig: "文件过大。",
+    uploadBadType: "不支持的文件类型。",
+    uploadMissing: "请选择文件并填写标题与作者。",
+    confirmMatch: (name: string) =>
+      `该作者的名字与已有角色${name}相近。要将此文本归于该角色吗？`,
+    useExisting: "是，归于该角色",
+    createSeparate: "否，保持独立",
+    personaForged: "已为该作者塑造新角色。",
+    personaForgeFailed: "角色塑造失败——稍后可于阅读室召唤。",
   },
 };
 

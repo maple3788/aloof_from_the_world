@@ -45,6 +45,12 @@ flowchart LR
 - **Persona forge**: if the work's author has no persona card yet, one is forged on
   demand — Wikipedia reference + LLM, validated, written as a YAML persona card, and
   live without a server restart. Toggle with `PERSONA_AUTOGEN`.
+- **Persona pages**: click any thinker in the library to see their full card — voice,
+  worldview, style rules, and their works — and start a conversation with them.
+- **Upload your own texts**: the library's "+ Add a text" page accepts
+  .txt/.md/.pdf/.epub. The backend extracts the text, matches the author to an existing
+  persona (asking when unsure), forges a new persona when there is no match, and indexes
+  the work into the library, reading room, and retrieval. Toggle with `UPLOAD_ENABLED`.
 
 ## Stack
 
@@ -158,8 +164,8 @@ compose stack includes a Redis service and wires `REDIS_URL` automatically.
 ## Tests
 
 ```bash
-make test        # backend: 92 tests (RAG, personas, forge, critic, graph, API — fakes, no keys needed)
-                 # frontend: eslint + 22 component tests (Vitest + Testing Library)
+make test        # backend: 129 tests (RAG, personas, forge, uploads, critic, graph, API — fakes, no keys needed)
+                 # frontend: eslint + 34 component/page tests (Vitest + Testing Library)
 ```
 
 ## Project layout
@@ -174,7 +180,7 @@ backend/
     db.py        # SQLite persistence
     cli.py       # terminal REPL
 frontend/
-  src/app/       # chat page + library + reading room (/read) + trace board
+  src/app/       # chat page + library + reading room (/read) + persona pages + upload + trace board
   src/components/# sidebar, persona picker, message list, composer, reader panes
 data/            # corpus cache, Chroma vector store, SQLite db
 ```

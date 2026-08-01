@@ -10,6 +10,15 @@ export interface Persona {
   greeting_zh?: string;
 }
 
+export interface PersonaDetail extends Persona {
+  authors: string[];
+  traditions: string[];
+  voice: string;
+  worldview: string;
+  style_rules: string[];
+  works: Work[];
+}
+
 export interface Health {
   status: string;
   llm_provider: string;
@@ -54,9 +63,17 @@ export interface Work {
   author: string;
   tradition: string;
   era: string;
-  gutenberg_id: number;
+  gutenberg_id?: number;
   chunks: number;
   persona_id: string | null;
+  source?: "gutenberg" | "upload";
+}
+
+export interface UploadResult {
+  work: Work;
+  persona_id: string | null;
+  match: "exact" | "confirmed" | "none";
+  persona_status?: "created" | "existing" | "failed" | "skipped";
 }
 
 export interface WorkText {

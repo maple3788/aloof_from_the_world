@@ -6,6 +6,7 @@ from app.agents.personas import load_personas
 from app.agents.router import VALID_MODES
 from app.db import Database
 from app.rag.ingest import load_manifest
+from app.rag.uploads import merge_works
 
 router = APIRouter()
 
@@ -30,7 +31,8 @@ async def create_session(body: SessionCreate, request: Request):
     language = normalize_language(body.language)
     personas = load_personas()
     persona_ids = [p for p in body.persona_ids if p in personas] or ["socrates"]
-    work = next((w for w in load_manifest() if w["id"] == body.work_id), None)
+    works = merge_works(load_manifest(), await database.list_uploaded_works())
+    work = next((w for w in works if w["id"] == body.work_id), None)
     return await database.create_session(
         mode=mode,
         persona_ids=persona_ids,

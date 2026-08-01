@@ -25,9 +25,17 @@ export default function LibraryPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-6 py-10">
-      <Link href="/" className="text-sm text-stone-500 transition hover:text-amber-300">
-        ← Back to conversations
-      </Link>
+      <nav className="flex items-center">
+        <Link href="/" className="text-sm text-stone-500 transition hover:text-amber-300">
+          ← Back to conversations
+        </Link>
+        <Link
+          href="/upload"
+          className="ml-auto text-sm text-stone-500 transition hover:text-amber-300"
+        >
+          + Add a text
+        </Link>
+      </nav>
 
       <h1 className="mt-4 font-serif text-4xl font-semibold text-stone-100">
         The Library
@@ -45,7 +53,11 @@ export default function LibraryPage() {
         {personas.map((p) => {
           const theme = personaTheme(p.id, p.color);
           return (
-            <div key={p.id} className={`rounded-xl border p-4 ${theme.selected}`}>
+            <Link
+              key={p.id}
+              href={`/personas/${p.id}`}
+              className={`block rounded-xl border p-4 transition hover:brightness-125 ${theme.selected}`}
+            >
               <p className="flex items-center gap-2 font-serif text-lg font-semibold text-stone-100">
                 <span className={`h-2 w-2 rounded-full ${theme.dot}`} />
                 {p.name}
@@ -56,7 +68,7 @@ export default function LibraryPage() {
               <p className="mt-2 text-sm italic leading-relaxed text-stone-400">
                 “{p.greeting}”
               </p>
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -81,8 +93,24 @@ export default function LibraryPage() {
               <tr key={w.id} className="text-stone-300">
                 <td className="px-4 py-2.5 font-serif font-semibold text-stone-100">
                   {w.title}
+                  {w.source === "upload" && (
+                    <span className="ml-2 rounded-full border border-stone-700 px-1.5 py-0.5 align-middle text-[10px] font-normal uppercase tracking-wide text-stone-500">
+                      uploaded
+                    </span>
+                  )}
                 </td>
-                <td className="px-4 py-2.5">{w.author}</td>
+                <td className="px-4 py-2.5">
+                  {w.persona_id ? (
+                    <Link
+                      href={`/personas/${w.persona_id}`}
+                      className="transition hover:text-amber-300"
+                    >
+                      {w.author}
+                    </Link>
+                  ) : (
+                    w.author
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-stone-500">{w.tradition}</td>
                 <td className="px-4 py-2.5 text-stone-500">{w.era}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-stone-500">

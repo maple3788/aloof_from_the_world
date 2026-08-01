@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     persona_autogen: bool = True
     persona_gen_timeout: int = 90
 
+    # Uploads: user-supplied texts (.txt/.md/.pdf/.epub), indexed at request time.
+    upload_enabled: bool = True
+    max_upload_mb: int = 2
+    upload_dir: Path = DATA_DIR / "uploads"
+    upload_timeout: int = 180
+
     # Cache layer: unset redis_url disables caching entirely (local-first default).
     redis_url: str | None = None
     cache_ttl_retrieval: int = 3600

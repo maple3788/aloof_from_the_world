@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import re
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Literal
 
@@ -201,6 +201,24 @@ def persist_card(card: PersonaCard, personas_dir: Path = PERSONAS_DIR) -> Path:
         yaml.safe_dump(asdict(card), f, allow_unicode=True, sort_keys=False)
     load_personas.cache_clear()
     return path
+
+
+def add_author_variant(
+    persona_id: str, author: str, personas_dir: Path = PERSONAS_DIR
+) -> PersonaCard | None:
+    """Append an author-name variant to a card so retrieval matches it exactly.
+
+    Immutable update: the frozen card is replaced, never edited in place.
+    Only the authors list changes; hand-authored fields pass through untouched
+    (though YAML formatting is normalized on rewrite). Returns the updated
+    card, or None for an unknown persona.
+    """
+    card = load_personas(personas_dir).get(persona_id)
+    if card is None or author in card.authors:
+        return card
+    updated = replace(card, authors=[*card.authors, author])
+    persist_card(updated, personas_dir)
+    return updated
 
 
 def _lock_for(author: str) -> asyncio.Lock:

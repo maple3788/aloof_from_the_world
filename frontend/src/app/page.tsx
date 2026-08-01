@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Composer from "@/components/Composer";
 import MessageList from "@/components/MessageList";
 import Sidebar from "@/components/Sidebar";
@@ -10,13 +11,27 @@ import { strings } from "@/lib/i18n";
 import type { Language, Message, Persona, Session } from "@/lib/types";
 
 export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeInner />
+    </Suspense>
+  );
+}
+
+function HomeInner() {
+  const searchParams = useSearchParams();
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draftMode, setDraftMode] = useState<"discuss" | "study">("discuss");
   const [draftLanguage, setDraftLanguage] = useState<Language>("en");
-  const [draftPersonas, setDraftPersonas] = useState<string[]>(["socrates"]);
+  const [draftPersonas, setDraftPersonas] = useState<string[]>(() => {
+    const preselected = searchParams.get("personas");
+    return preselected
+      ? preselected.split(",").filter(Boolean).slice(0, 3)
+      : ["socrates"];
+  });
   const [maxPersonas, setMaxPersonas] = useState(3);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
